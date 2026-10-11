@@ -1,0 +1,6 @@
+{
+  "name": "허브스튜디오5",
+  "description": "이미지로 교감하고 감성으로 쓰는 라이프스타일 웹진 & 스마트 블로그 퍼블리셔",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

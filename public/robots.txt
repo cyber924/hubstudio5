@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Allow: /blog/
+Allow: /webzine
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://ais-dev-vbq4nmkpfhk7rkjwkaopzn-548509548729.asia-east1.run.app/sitemap.xml
