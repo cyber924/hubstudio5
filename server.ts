@@ -1,5 +1,4 @@
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
@@ -1776,11 +1775,16 @@ async function handleSeoPage(req: express.Request, res: express.Response, isDeta
 
 // SETUP STATIC / VITE ENVIRONMENT FIRST
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-  viteInstance = await createViteServer({
-    server: { middlewareMode: true },
-    appType: 'custom'
-  });
-  app.use(viteInstance.middlewares);
+  try {
+    const { createServer: createViteServer } = await import('vite');
+    viteInstance = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'custom'
+    });
+    app.use(viteInstance.middlewares);
+  } catch (e) {
+    console.warn('Vite dev server init skipped:', e);
+  }
 } else {
   const distPath = path.resolve(process.cwd(), 'dist');
   app.use(express.static(distPath, { index: false }));

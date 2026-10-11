@@ -807,13 +807,12 @@ function WebzineHome() {
       url += `?theme=${encodeURIComponent(activeTheme)}`;
     }
 
-    fetch(url)
-      .then(res => res.json())
+    safeApiCall(url)
       .then(data => {
         if (data.posts) setPosts(data.posts);
-        setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [activeTheme]);
 
   const filteredPosts = posts.filter(post => {
@@ -977,17 +976,13 @@ function BlogDetail() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/hub/posts/${id}`)
-      .then(res => {
-        if (!res.ok) throw new Error('해당 글이 없거나 읽기 권한이 없습니다.');
-        return res.json();
-      })
+    safeApiCall(`/api/hub/posts/${id}`)
       .then(data => {
         setPost(data.post);
         setLoading(false);
       })
       .catch(err => {
-        setError(err.message);
+        setError(err.message || '해당 글이 없거나 읽기 권한이 없습니다.');
         setLoading(false);
       });
   }, [id]);
@@ -1379,8 +1374,7 @@ function Studio() {
   const fetchGallery = async () => {
     setGalleryLoading(true);
     try {
-      const res = await fetch('/api/hub/gallery-images');
-      const data = await res.json();
+      const data = await safeApiCall('/api/hub/gallery-images');
       if (data.images && data.images.length > 0) {
         setGalleryImages(data.images);
       }
@@ -1451,7 +1445,7 @@ function Studio() {
     setStep(2);
 
     try {
-      const res = await fetch('/api/action/recommend-from-images', {
+      const data = await safeApiCall('/api/action/recommend-from-images', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1466,7 +1460,6 @@ function Studio() {
           }))
         })
       });
-      const data = await res.json();
       if (data.recommended && data.recommended.length > 0) {
         setRecommendations(data.recommended);
       } else {
@@ -1521,19 +1514,18 @@ function Studio() {
 
     try {
       // 1. Issue sequence ID
-      const initRes = await fetch('/api/action/init-post', {
+      const initData = await safeApiCall('/api/action/init-post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ theme: selectedTheme === '전체' ? '여행·라이프' : selectedTheme })
       });
-      const initData = await initRes.json();
       const nextId = initData.id || 1;
       setIssuedId(nextId);
 
       // 2. Generate content using the exact selected images in storyline order
       setGenStatusText(`글 번호 #${nextId} 발급 완료! 선정하신 ${selectedImages.length}장의 사진 순서에 맞춰 감성 스토리텔링 글을 집필하고 있습니다...`);
 
-      const genRes = await fetch('/api/action/generate-content', {
+      const genData = await safeApiCall('/api/action/generate-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1550,8 +1542,6 @@ function Studio() {
           }))
         })
       });
-      const genData = await genRes.json();
-      if (genData.error) throw new Error(genData.error);
 
       setGeneratedPost(genData.post);
       setStep(4);
@@ -1573,7 +1563,7 @@ function Studio() {
     if (!issuedId) return;
     setGenerating(true);
     try {
-      const res = await fetch('/api/action/update-post', {
+      await safeApiCall('/api/action/update-post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1581,8 +1571,6 @@ function Studio() {
           status: publish ? 'published' : 'draft'
         })
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
 
       setSaveSuccess(true);
       showToast(publish ? '웹진에 성공적으로 공개 발행되었습니다!' : '임시 보관함에 안전하게 저장되었습니다.', 'success');
@@ -2150,13 +2138,12 @@ function MyPosts() {
 
   const fetchMyPosts = () => {
     setLoading(true);
-    fetch('/api/action/my-posts')
-      .then(res => res.json())
+    safeApiCall('/api/action/my-posts')
       .then(data => {
         if (data.posts) setPosts(data.posts);
-        setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {})
+      .finally(() => setLoading(false));
   };
 
   // 1. Unpublish / Publish toggle
@@ -2167,7 +2154,7 @@ function MyPosts() {
     if (!window.confirm(confirmMsg)) return;
 
     try {
-      const res = await fetch('/api/action/update-post', {
+      await safeApiCall('/api/action/update-post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2175,8 +2162,6 @@ function MyPosts() {
           status: isPublish ? 'published' : 'draft'
         })
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
       showToast(isPublish ? '글이 공개 발행되었습니다!' : '발행이 취소되어 임시 저장되었습니다.', 'success');
       fetchMyPosts();
     } catch (err: any) {
@@ -2188,7 +2173,7 @@ function MyPosts() {
   const handleDeletePost = async (post: BlogPost) => {
     if (!window.confirm('글을 삭제하시겠습니까? 글 번호는 영구 소멸되며, 다시 생성되지 않습니다.')) return;
     try {
-      const res = await fetch('/api/action/update-post', {
+      await safeApiCall('/api/action/update-post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2196,8 +2181,6 @@ function MyPosts() {
           status: 'deleted'
         })
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
       showToast('글이 삭제 처리되었습니다.', 'info');
       fetchMyPosts();
     } catch (err: any) {
@@ -2219,7 +2202,7 @@ function MyPosts() {
     if (!selectedPost) return;
     setSaving(true);
     try {
-      const res = await fetch('/api/action/update-post', {
+      await safeApiCall('/api/action/update-post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2230,8 +2213,6 @@ function MyPosts() {
           content: editContent
         })
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
       showToast('수정 내용이 저장되었습니다.', 'success');
       fetchMyPosts();
       setActiveTab('list');
@@ -2251,13 +2232,11 @@ function MyPosts() {
     setReviewing(true);
 
     try {
-      const res = await fetch('/api/action/review', {
+      const data = await safeApiCall('/api/action/review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: post.id })
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
       setReviewData(data.reviewResult);
     } catch (err: any) {
       showToast('검수 실패: ' + err.message, 'error');
@@ -2274,13 +2253,11 @@ function MyPosts() {
     if (!window.confirm('스마트 검수 제안을 최종 적용하시겠습니까? 적용 시 현재 상태는 이전 버전 이력(revisions)에 자동 안전 백업된 후 덮어쓰기 됩니다.')) return;
     setReviewing(true);
     try {
-      const res = await fetch('/api/action/apply-review', {
+      await safeApiCall('/api/action/apply-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: selectedPost.id })
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
       showToast('검수 개선안이 성공적으로 적용되었습니다!', 'success');
       fetchMyPosts();
       setActiveTab('list');
@@ -2300,8 +2277,7 @@ function MyPosts() {
     setHistoryLoading(true);
 
     try {
-      const res = await fetch(`/api/action/revisions/${post.id}`);
-      const data = await res.json();
+      const data = await safeApiCall(`/api/action/revisions/${post.id}`);
       setRevisions(data.revisions || []);
     } catch (err: any) {
       showToast('이력 조회 오류', 'error');
@@ -2317,7 +2293,7 @@ function MyPosts() {
     setHistoryLoading(true);
 
     try {
-      const res = await fetch('/api/action/restore-revision', {
+      await safeApiCall('/api/action/restore-revision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2325,8 +2301,6 @@ function MyPosts() {
           version: versionNum
         })
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
       showToast('이전 버전 복원이 완료되었습니다.', 'success');
       fetchMyPosts();
       setActiveTab('list');
