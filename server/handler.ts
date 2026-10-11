@@ -1,4 +1,4 @@
-import app from '../server';
+import app from '../server.js';
 export default function handler(req:any,res:any){
  const url=new URL(req.url||'/', 'https://hubstudio5.vercel.app');
  const route=req.query?.__route||url.searchParams.get('__route');

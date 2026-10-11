@@ -12,7 +12,7 @@ Firebase 프로젝트 `studio-9240700230-1dd9a`의 기존 허브스튜디오1·2
 
 Vercel 환경변수는 GEMINI_API_KEY, 선택 GEMINI_MODEL입니다. 모델 키는 브라우저에 넣지 않습니다. 정식 주소는 https://hubstudio5.vercel.app 로 고정했습니다. 도메인을 바꾸면 server/seo.ts, index.html, server.ts의 주소를 함께 변경합니다.
 
-npm ci → npm run lint → npm test → npm run build. Vercel routes가 API/공개 SSR을 api/index.ts로 먼저 전달하고 정적 파일을 뒤에서 제공합니다. 파일 저장 폴더와 로컬 JSON DB는 사용하지 않습니다.
+npm ci → npm run lint → npm test → npm run build. Vercel routes가 API/공개 SSR을 빌드된 단일 JavaScript 함수 api/index.js로 먼저 전달하고 정적 파일을 뒤에서 제공합니다. 파일 저장 폴더와 로컬 JSON DB는 사용하지 않습니다.
 
 실계정 확인: 로그인→이미지 선택→제목 추천→본문 생성→초안 저장→새로고침→발행→비로그인 상세/사이트맵 확인. 검수→개선 적용→버전 복원과 다른 계정 격리를 확인합니다. 로컬 테스트는 Firestore/AI HTTP 요청을 모의 검증하며 실계정 로그인과 배포 DB 쓰기를 대신하지 않습니다.
 
