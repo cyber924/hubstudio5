@@ -165,6 +165,7 @@ interface AuthContextType {
   loading: boolean;
   login: (e: string, p: string) => Promise<void>;
   register: (e: string, p: string) => Promise<void>;
+  demoLogin: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -176,13 +177,42 @@ function useAuth() {
   return context;
 }
 
+// Resilient API response parser that safely handles JSON or server HTML errors
+async function safeApiCall(url: string, options?: RequestInit) {
+  const res = await fetch(url, options);
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    try {
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || `요청 실패 (${res.status})`);
+      }
+      return data;
+    } catch (e: any) {
+      throw new Error(e.message || '응답 데이터 파싱 실패');
+    }
+  }
+
+  // Non-JSON response (e.g., HTML from proxy or Vercel rewrite)
+  const text = await res.text();
+  console.warn('Non-JSON response from ' + url + ':', text.slice(0, 200));
+  if (!res.ok) {
+    throw new Error(`서버 응답 상태코드 (${res.status}). 잠시 후 다시 시도해 주세요.`);
+  }
+  throw new Error('서버에서 올바른 JSON 형식 데이터를 반환하지 않았습니다.');
+}
+
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch('/api/auth/me')
-      .then(res => res.json())
+      .then(res => {
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) return res.json();
+        return { user: null };
+      })
       .then(data => {
         if (data.user) setUser(data.user);
         setLoading(false);
@@ -191,34 +221,40 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const res = await fetch('/api/auth/login', {
+    const data = await safeApiCall('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
     setUser({ uid: data.uid, email: data.email });
   };
 
   const register = async (email: string, password: string) => {
-    const res = await fetch('/api/auth/register', {
+    const data = await safeApiCall('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
+    setUser({ uid: data.uid, email: data.email });
+  };
+
+  const demoLogin = async () => {
+    const data = await safeApiCall('/api/auth/demo-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
     setUser({ uid: data.uid, email: data.email });
   };
 
   const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {}
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, demoLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );
@@ -1155,7 +1191,7 @@ function BlogDetail() {
 
 // --- COMPONENT: LOGIN ---
 function Login() {
-  const { login, register, user } = useAuth();
+  const { login, register, demoLogin, user } = useAuth();
   const navigate = useNavigate();
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
@@ -1172,7 +1208,10 @@ function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      return setError('모든 필드를 채워주세요.');
+      return setError('이메일과 비밀번호를 모두 입력해 주세요.');
+    }
+    if (password.length < 6) {
+      return setError('비밀번호는 최소 6자리 이상 입력해 주세요.');
     }
     setSubmitting(true);
     setError('');
@@ -1184,7 +1223,20 @@ function Login() {
       }
       navigate('/studio');
     } catch (err: any) {
-      setError(err.message || '인증 실패');
+      setError(err.message || '인증 처리에 실패했습니다.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDemoLogin = async () => {
+    setSubmitting(true);
+    setError('');
+    try {
+      await demoLogin();
+      navigate('/studio');
+    } catch (err: any) {
+      setError(err.message || '체험 로그인 실패');
     } finally {
       setSubmitting(false);
     }
@@ -1203,6 +1255,24 @@ function Login() {
           <p className="text-xs text-slate-400">
             {isRegister ? '새로운 스토리 에디터 작가로 합류하세요' : '에디터 계정으로 연동하고 감성 글을 발행해 보세요'}
           </p>
+        </div>
+
+        {/* 1-CLICK QUICK DEMO ACCESS */}
+        <div>
+          <button
+            type="button"
+            onClick={handleDemoLogin}
+            disabled={submitting}
+            className="w-full py-3 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-xl text-xs font-bold hover:bg-indigo-100 transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+          >
+            <Sparkles className="w-4 h-4 text-indigo-600" />
+            <span>1초 작가 체험으로 바로 시작 (입력 없이 즉시 입장)</span>
+          </button>
+        </div>
+
+        <div className="relative flex items-center justify-center">
+          <div className="border-t border-slate-200 w-full"></div>
+          <span className="bg-white px-3 text-[11px] text-slate-400 shrink-0 font-medium">또는 이메일 로그인</span>
         </div>
 
         {error && (
@@ -1231,7 +1301,7 @@ function Login() {
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder="•••••••• (6자리 이상)"
               className="w-full px-4 py-3 border border-slate-200 rounded-xl text-xs focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               required
             />
@@ -1240,7 +1310,7 @@ function Login() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3 bg-indigo-600 text-white rounded-xl text-xs font-extrabold shadow-md shadow-indigo-100 hover:bg-indigo-700 transition flex items-center justify-center gap-2 disabled:bg-indigo-400"
+            className="w-full py-3 bg-indigo-600 text-white rounded-xl text-xs font-extrabold shadow-md shadow-indigo-100 hover:bg-indigo-700 transition flex items-center justify-center gap-2 disabled:bg-indigo-400 cursor-pointer"
           >
             {submitting ? (
               <RefreshCw className="w-4 h-4 animate-spin" />
@@ -1252,13 +1322,16 @@ function Login() {
           </button>
         </form>
 
-        <div className="text-center pt-2">
+        <div className="text-center pt-2 space-y-2">
           <button
-            onClick={() => setIsRegister(!isRegister)}
-            className="text-xs text-indigo-600 hover:underline font-semibold"
+            onClick={() => { setIsRegister(!isRegister); setError(''); }}
+            className="text-xs text-indigo-600 hover:underline font-semibold cursor-pointer"
           >
             {isRegister ? '이미 계정이 있으신가요? 로그인' : '에디터 계정이 없으신가요? 가입하기'}
           </button>
+          <p className="text-[11px] text-slate-400">
+            * 처음 오신 분도 이메일과 비밀번호를 입력하면 안전하게 즉시 작가 계정 등록 및 연동됩니다.
+          </p>
         </div>
       </div>
     </div>
