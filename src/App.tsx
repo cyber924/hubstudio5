@@ -1181,7 +1181,8 @@ function Login() {
       }
       navigate('/studio');
     } catch (err: any) {
-      setError(err.message || '인증 처리에 실패했습니다.');
+      const messages: Record<string, string> = {'auth/invalid-credential':'이메일 또는 비밀번호가 올바르지 않습니다. 기존 이미지허브 계정을 확인하세요.','auth/email-already-in-use':'이미 가입된 이메일입니다. 로그인으로 전환하세요.','auth/invalid-email':'이메일 주소 형식을 확인하세요.','auth/too-many-requests':'로그인 시도가 많습니다. 잠시 후 다시 시도하세요.','auth/network-request-failed':'Firebase 인증 서버에 연결하지 못했습니다. 인터넷 연결을 확인하세요.'};
+      setError(messages[err.code] || err.message || '인증 처리에 실패했습니다.');
     } finally {
       setSubmitting(false);
     }
@@ -1250,7 +1251,7 @@ function Login() {
             ) : isRegister ? (
               '계정 만들기 및 로그인'
             ) : (
-              '작가 로그인 완료'
+              '작가 로그인'
             )}
           </button>
         </form>
@@ -1263,7 +1264,7 @@ function Login() {
             {isRegister ? '이미 계정이 있으신가요? 로그인' : '에디터 계정이 없으신가요? 가입하기'}
           </button>
           <p className="text-[11px] text-slate-400">
-            * 처음 오신 분도 이메일과 비밀번호를 입력하면 안전하게 즉시 작가 계정 등록 및 연동됩니다.
+            * 기존 이미지허브 계정으로 로그인하세요. 처음 이용하시면 가입하기를 선택하세요.
           </p>
         </div>
       </div>
