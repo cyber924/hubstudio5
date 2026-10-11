@@ -39,6 +39,9 @@ import {
   Code
 } from 'lucide-react';
 
+import {auth,authFetch} from './lib/firebase';
+import {onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut} from 'firebase/auth';
+
 // --- TS INTERFACES ---
 interface UserSession {
   uid: string;
@@ -179,7 +182,7 @@ function useAuth() {
 
 // Resilient API response parser that safely handles JSON or server HTML errors
 async function safeApiCall(url: string, options?: RequestInit) {
-  const res = await fetch(url, options);
+  const res = await authFetch(url, options);
   const contentType = res.headers.get('content-type') || '';
   if (contentType.includes('application/json')) {
     try {
@@ -206,52 +209,11 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then(res => {
-        const ct = res.headers.get('content-type') || '';
-        if (ct.includes('application/json')) return res.json();
-        return { user: null };
-      })
-      .then(data => {
-        if (data.user) setUser(data.user);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
-
-  const login = async (email: string, password: string) => {
-    const data = await safeApiCall('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    setUser({ uid: data.uid, email: data.email });
-  };
-
-  const register = async (email: string, password: string) => {
-    const data = await safeApiCall('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    setUser({ uid: data.uid, email: data.email });
-  };
-
-  const demoLogin = async () => {
-    const data = await safeApiCall('/api/auth/demo-login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    setUser({ uid: data.uid, email: data.email });
-  };
-
-  const logout = async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-    } catch {}
-    setUser(null);
-  };
+  useEffect(()=>onAuthStateChanged(auth,current=>{setUser(current?{uid:current.uid,email:current.email||''}:null);setLoading(false);}),[]);
+  const login=async(email:string,password:string)=>{await signInWithEmailAndPassword(auth,email.trim(),password);};
+  const register=async(email:string,password:string)=>{await createUserWithEmailAndPassword(auth,email.trim(),password);};
+  const demoLogin=async()=>{throw new Error('실제 Firebase 계정으로 로그인해주세요.');};
+  const logout=async()=>{await signOut(auth);};
 
   return (
     <AuthContext.Provider value={{ user, loading, login, register, demoLogin, logout }}>
@@ -791,6 +753,7 @@ function AppLayout() {
 
 // --- COMPONENT: WEBZINE HOME ---
 function WebzineHome() {
+  const {showToast}=useToast();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -811,7 +774,7 @@ function WebzineHome() {
       .then(data => {
         if (data.posts) setPosts(data.posts);
       })
-      .catch(() => {})
+      .catch((err:any) => showToast(err.message||'보관함 조회 실패','error'))
       .finally(() => setLoading(false));
   }, [activeTheme]);
 
@@ -1252,31 +1215,6 @@ function Login() {
           </p>
         </div>
 
-        {/* 1-CLICK QUICK DEMO ACCESS */}
-        <div>
-          <button
-            type="button"
-            onClick={handleDemoLogin}
-            disabled={submitting}
-            className="w-full py-3 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-xl text-xs font-bold hover:bg-indigo-100 transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-          >
-            <Sparkles className="w-4 h-4 text-indigo-600" />
-            <span>1초 작가 체험으로 바로 시작 (입력 없이 즉시 입장)</span>
-          </button>
-        </div>
-
-        <div className="relative flex items-center justify-center">
-          <div className="border-t border-slate-200 w-full"></div>
-          <span className="bg-white px-3 text-[11px] text-slate-400 shrink-0 font-medium">또는 이메일 로그인</span>
-        </div>
-
-        {error && (
-          <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2.5 text-xs text-red-600">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-600 block">이메일 주소</label>
@@ -1335,7 +1273,7 @@ function Login() {
 
 // --- COMPONENT: STUDIO (AI WRITING WITH GALLERY SELECTION) ---
 function Studio() {
-  const { user } = useAuth();
+  const { user,loading:authLoading } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -1364,12 +1302,15 @@ function Studio() {
   const themes = ['전체', '여행·맛집', '카페', '생활', '제품', '파크골프'];
 
   useEffect(() => {
+    if(authLoading)return;
+    setGeneratedPost(null);setIssuedId(null);setSelectedImages([]);
     if (!user) {
+      setGeneratedPost(null);setIssuedId(null);setSelectedImages([]);
       navigate('/login');
     } else {
       fetchGallery();
     }
-  }, [user]);
+  }, [user,authLoading]);
 
   const fetchGallery = async () => {
     setGalleryLoading(true);
@@ -1378,8 +1319,8 @@ function Studio() {
       if (data.images && data.images.length > 0) {
         setGalleryImages(data.images);
       }
-    } catch {
-      // ignore
+    } catch (err:any) {
+      showToast(err.message||'이미지 허브 조회 실패','error');
     } finally {
       setGalleryLoading(false);
     }
@@ -1510,7 +1451,7 @@ function Studio() {
   // Step 3 -> Step 4: Issue ID and Generate Content using the exact selected images
   const executeContentGeneration = async (titleToUse: string) => {
     setGenerating(true);
-    setGenStatusText('데이터베이스에서 고유 글 번호를 원자적으로 발급하고 있습니다...');
+    setGenStatusText('새 원고를 데이터베이스에 저장하고 있습니다...');
 
     try {
       // 1. Issue sequence ID
@@ -1519,7 +1460,8 @@ function Studio() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ theme: selectedTheme === '전체' ? '여행·라이프' : selectedTheme })
       });
-      const nextId = initData.id || 1;
+      const nextId = initData.id;
+      if(!nextId)throw new Error('원고 ID가 발급되지 않았습니다.');
       setIssuedId(nextId);
 
       // 2. Generate content using the exact selected images in storyline order
@@ -1568,6 +1510,7 @@ function Studio() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: issuedId,
+          expectedVersion:generatedPost?.version,
           status: publish ? 'published' : 'draft'
         })
       });
@@ -2102,7 +2045,7 @@ function Studio() {
 
 // --- COMPONENT: MY POSTS (내 글 관리) ---
 function MyPosts() {
-  const { user } = useAuth();
+  const { user,loading:authLoading } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -2129,21 +2072,22 @@ function MyPosts() {
   const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
+    if(authLoading)return;
+    setPosts([]);setSelectedPost(null);setReviewData(null);setRevisions([]);
     if (!user) {
       navigate('/login');
     } else {
       fetchMyPosts();
     }
-  }, [user]);
+  }, [user,authLoading]);
 
   const fetchMyPosts = () => {
+    const uid=auth.currentUser?.uid;
     setLoading(true);
     safeApiCall('/api/action/my-posts')
-      .then(data => {
-        if (data.posts) setPosts(data.posts);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .then(data => {if(auth.currentUser?.uid===uid)setPosts(data.posts||[]);})
+      .catch((err:any) => {if(auth.currentUser?.uid===uid)showToast(err.message||'보관함 조회 실패','error');})
+      .finally(() => {if(auth.currentUser?.uid===uid)setLoading(false);});
   };
 
   // 1. Unpublish / Publish toggle
@@ -2159,6 +2103,7 @@ function MyPosts() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: post.id,
+          expectedVersion:post.version,
           status: isPublish ? 'published' : 'draft'
         })
       });
@@ -2178,6 +2123,7 @@ function MyPosts() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: post.id,
+          expectedVersion:post.version,
           status: 'deleted'
         })
       });
@@ -2207,6 +2153,7 @@ function MyPosts() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: selectedPost.id,
+          expectedVersion:selectedPost.version,
           status: selectedPost.status,
           title: editTitle,
           description: editDescription,
@@ -2235,7 +2182,7 @@ function MyPosts() {
       const data = await safeApiCall('/api/action/review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: post.id })
+        body: JSON.stringify({ id: post.id,expectedVersion:post.version })
       });
       setReviewData(data.reviewResult);
     } catch (err: any) {
@@ -2256,7 +2203,7 @@ function MyPosts() {
       await safeApiCall('/api/action/apply-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selectedPost.id })
+        body: JSON.stringify({ id: selectedPost.id,expectedVersion:selectedPost.version })
       });
       showToast('검수 개선안이 성공적으로 적용되었습니다!', 'success');
       fetchMyPosts();
@@ -2298,6 +2245,7 @@ function MyPosts() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: selectedPost.id,
+          expectedVersion:selectedPost.version,
           version: versionNum
         })
       });

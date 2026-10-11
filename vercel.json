@@ -2,11 +2,41 @@
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "framework": "vite",
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/robots.txt", "destination": "/robots.txt" },
-    { "source": "/sitemap.xml", "destination": "/sitemap.xml" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  "framework": null,
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 120,
+      "includeFiles": "dist/**"
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/index?__route=/api/$1"
+    },
+    {
+      "src": "/(robots.txt|sitemap.xml)",
+      "dest": "/api/index?__route=/$1"
+    },
+    {
+      "src": "/",
+      "dest": "/api/index?__route=/"
+    },
+    {
+      "src": "/(webzine|blog)",
+      "dest": "/api/index?__route=/$1"
+    },
+    {
+      "src": "/blog/(.*)",
+      "dest": "/api/index?__route=/blog/$1"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "installCommand": "npm ci"
 }

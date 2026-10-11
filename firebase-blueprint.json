@@ -1,99 +1,28 @@
 {
-  "entities": {
-    "Image": {
-      "title": "Image Asset",
-      "description": "Existing ImageHub assets.",
-      "type": "object",
-      "properties": {
-        "visibility": { "type": "string", "enum": ["public", "private"] },
-        "title": { "type": "string" },
-        "destination": { "type": "string" },
-        "tags": { "type": "array" },
-        "prompt": { "type": "string" },
-        "ratio": { "type": "string" },
-        "aspectRatio": { "type": "string" },
-        "ownerId": { "type": "string" }
-      },
-      "required": ["visibility"]
-    },
-    "Hub5Post": {
-      "title": "Hub5 Blog Post",
-      "description": "Blog posts managed in Hub5.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "number" },
-        "owner": { "type": "string" },
-        "theme": { "type": "string" },
-        "title": { "type": "string" },
-        "description": { "type": "string" },
-        "content": { "type": "string", "description": "JSON string containing title, description, intro, sections, summary, tags" },
-        "status": { "type": "string", "enum": ["published", "draft", "deleted"] },
-        "created": { "type": "string" },
-        "updated": { "type": "string" },
-        "published": { "type": "string" },
-        "version": { "type": "number" }
-      },
-      "required": ["id", "owner", "theme", "title", "status", "created", "updated", "version"]
-    },
-    "Hub5Counter": {
-      "title": "Hub5 ID Counter",
-      "description": "Counter for issuing unique numerical post IDs.",
-      "type": "object",
-      "properties": {
-        "count": { "type": "number" }
-      },
-      "required": ["count"]
-    },
-    "Hub5Review": {
-      "title": "Hub5 Post Review",
-      "description": "Review results for the generated post, accessible only by the owner.",
-      "type": "object",
-      "properties": {
-        "reviewText": { "type": "string" },
-        "updated": { "type": "string" }
-      },
-      "required": ["reviewText", "updated"]
-    },
-    "Hub5Revision": {
-      "title": "Hub5 Post Revision",
-      "description": "Immutable historical revisions of a blog post, accessible only by the owner.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "number" },
-        "owner": { "type": "string" },
-        "theme": { "type": "string" },
-        "title": { "type": "string" },
-        "description": { "type": "string" },
-        "content": { "type": "string" },
-        "status": { "type": "string" },
-        "created": { "type": "string" },
-        "updated": { "type": "string" },
-        "published": { "type": "string" },
-        "version": { "type": "number" }
-      },
-      "required": ["id", "owner", "theme", "title", "content", "version"]
-    }
-  },
+  "projectId": "studio-9240700230-1dd9a",
+  "authentication": "Firebase Auth email/password; verified Firebase ID token on every private API request",
   "firestore": {
     "images": {
-      "schema": "Image",
-      "description": "Existing ImageHub images collection."
+      "read": "visibility=public",
+      "imageData": "dataUrl (webp/base64)"
     },
-    "hub5Posts/{postId}": {
-      "schema": "Hub5Post",
-      "description": "Hub5 blog posts main collection."
+    "contentProjects": {
+      "ownerField": "ownerId",
+      "records": [
+        "agentDraft",
+        "reviewMessage",
+        "hub5Revision"
+      ],
+      "siteField": "sourceSite=hub5",
+      "contentField": "contentJson"
     },
-    "hub5Counters/posts": {
-      "schema": "Hub5Counter",
-      "description": "Single document holding the ID counter."
-    },
-    "hub5Posts/{postId}/private/review": {
-      "schema": "Hub5Review",
-      "description": "Private review document of a Hub5 post."
-    },
-    "hub5Posts/{postId}/revisions/{versionId}": {
-      "schema": "Hub5Revision",
-      "description": "Immutable revision history collection."
+    "publishedContents": {
+      "ownerField": "ownerId",
+      "siteField": "sourceSite=hub5",
+      "contentField": "contentJson",
+      "publicCondition": "visibility=public AND status=published",
+      "url": "/blog/{postId}"
     }
-  }
+  },
+  "storage": "No local file database, Storage or service-account requirement"
 }
