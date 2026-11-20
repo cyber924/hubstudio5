@@ -71,9 +71,16 @@ test('publication atomically moves the original draft and exposes the same ID pu
  assert.equal((await exchange('/api/action/update-post','POST',{id,status:'draft',expectedVersion:2},'valid-a')).status,409);
 });
 test('initial HTML, full detail body, unique canonical and sitemap agree on actual published IDs',async()=>{
- for(const path of ['/','/webzine']){const r=await exchange(path);const html=await r.text();assert.equal(r.status,200);assert.ok(html.includes(`href="/blog/${id}"`));assert.equal((html.match(/rel="canonical"/g)||[]).length,1);}
+ for(const path of ['/']){const r=await exchange(path);const html=await r.text();assert.equal(r.status,200);assert.ok(html.includes(`href="/blog/${id}"`));assert.equal((html.match(/rel="canonical"/g)||[]).length,1);}
  const detail=await exchange('/blog/'+id),html=await detail.text();assert.equal(detail.status,200);assert.ok(html.includes('실제 본문 문단'));assert.ok(html.includes('BlogPosting'));assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('<script>alert(1)</script>'));assert.equal((html.match(/name="description"/g)||[]).length,1);
  const sitemap=await (await exchange('/sitemap.xml')).text();assert.ok(sitemap.includes('/blog/'+id));assert.ok(!sitemap.includes('run.app'));
+ assert.ok(!sitemap.includes('<loc>https://hubstudio5.vercel.app/webzine</loc>'));
+ const archive=await exchange('/webzine');assert.equal(archive.status,308);assert.equal(archive.headers.get('location'),'/');
+ const legacy=await exchange('/blog');assert.equal(legacy.status,308);assert.equal(legacy.headers.get('location'),'/');
+ assert.equal((await exchange('/blog/'+id)).status,200);
+ assert.match(html,/<meta property="og:image" content="https:\/\/hubstudio5.vercel.app\/api\/hub\/image-real">/);
+ assert.match(html,/<meta name="twitter:image" content="https:\/\/hubstudio5.vercel.app\/api\/hub\/image-real">/);
+ const homeHtml=await (await exchange('/')).text();assert.match(homeHtml,/<meta property="og:image" content="https:\/\/hubstudio5.vercel.app\/api\/hub\/img_jeju_ocean">/);
  const missing=await exchange('/blog/nonexistent');assert.equal(missing.status,404);assert.ok((await missing.text()).includes('noindex'));
 });
 test('AI failure is reported instead of an invented 95-point review or canned generated article',async()=>{
